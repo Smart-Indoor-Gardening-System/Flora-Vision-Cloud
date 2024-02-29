@@ -2,62 +2,60 @@
 // SPDX-License-Identifier: MIT-0
 
 import { APIGatewayRequestAuthorizerHandler } from "aws-lambda";
-import { CognitoJwtVerifier } from "aws-jwt-verify";
-
+import { PolicyDocument } from 'aws-lambda';
+import { CognitoJwtVerifier } from 'aws-jwt-verify';
+import { APIGatewayAuthorizerResult } from 'aws-lambda/trigger/api-gateway-authorizer';
+import 'source-map-support/register';
 const UserPoolId = process.env.USER_POOL_ID!;
 const AppClientId = process.env.APP_CLIENT_ID!;
 
-export const handler: APIGatewayRequestAuthorizerHandler = async (event, context) => {
+const cognitoJwtVerifier = CognitoJwtVerifier.create({
+  userPoolId: UserPoolId,
+  clientId: AppClientId,
+  tokenUse: 'access',
+});
+
+export const handler = async function (event: any): Promise<APIGatewayAuthorizerResult> {
+  console.log(`event => ${JSON.stringify(event)}`);
+
+  // authentication step by getting and validating JWT token
+  const encodedToken = event.queryStringParameters!.access_token!;
+
   try {
-    const verifier = CognitoJwtVerifier.create({
-      userPoolId: UserPoolId,
-      tokenUse: "id",
-      clientId: AppClientId,
-    });
+    // @ts-ignore
+    const decodedJWT = await cognitoJwtVerifier.verify(encodedToken);
 
-    const encodedToken = event.queryStringParameters!.idToken!;
-    const payload = await verifier.verify(encodedToken);
-    console.log("Token is valid. Payload:", payload);
+    // After the token is verified we can do Authorization check here if needed.
+    // If the request doesn't meet authorization conditions then we should return a Deny policy.
+    const policyDocument: PolicyDocument = {
+      Version: '2012-10-17',
+      Statement: [
+        {
+          Action: 'execute-api:Invoke',
+          Effect: 'Allow', // return Deny if you want to reject the request
+          Resource: event['methodArn'],
+        },
+      ],
+    };
 
-    return allowPolicy(event.methodArn, payload);
-  } catch (error: any) {
-    console.log(error.message);
-    return denyAllPolicy();
+    // This is the place you inject custom data into request context which will be available
+    // inside `event.requestContext.authorizer` in API Lambdas.
+    const context = {
+      'userId': 123,
+      'companyId': 456,
+      'role': 'ADMIN',
+    };
+
+    const response: APIGatewayAuthorizerResult = {
+      principalId: decodedJWT.sub,
+      policyDocument,
+      context,
+    };
+    console.log(`response => ${JSON.stringify(response)}`);
+
+    return response;
+  } catch (err) {
+    console.error('Invalid auth token. err => ', err);
+    throw new Error('Unauthorized');
   }
-};
-
-const denyAllPolicy = () => {
-  return {
-    principalId: "*",
-    policyDocument: {
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "*",
-          Effect: "Deny",
-          Resource: "*",
-        },
-      ],
-    },
-  };
-};
-
-const allowPolicy = (methodArn: string, idToken: any) => {
-  return {
-    principalId: idToken.sub,
-    policyDocument: {
-      Version: "2012-10-17",
-      Statement: [
-        {
-          Action: "execute-api:Invoke",
-          Effect: "Allow",
-          Resource: methodArn,
-        },
-      ],
-    },
-    context: {
-      // set userId in the context
-      userId: idToken.sub,
-    },
-  };
 };

@@ -1,5 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
-import { aws_lambda, aws_dynamodb as dynamo } from 'aws-cdk-lib';
+import { aws_lambda, aws_dynamodb as dynamo, Aws} from 'aws-cdk-lib';
 import { aws_cognito as cognito, RemovalPolicy } from "aws-cdk-lib";
 import { Construct } from 'constructs';
 import { NodejsFunction } from 'aws-cdk-lib/aws-lambda-nodejs';
@@ -7,6 +7,8 @@ import * as apigw from 'aws-cdk-lib/aws-apigateway';
 import * as apigw2 from '@aws-cdk/aws-apigatewayv2-alpha';
 import * as apigw2Integrations from '@aws-cdk/aws-apigatewayv2-integrations-alpha';
 import * as agwa from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
+import { Effect, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+
 
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 
@@ -71,13 +73,14 @@ export class FloraVisionCloudStack extends cdk.Stack {
     sensorDataTable.grantReadWriteData(lambdaFunction);
 
 
-	const authLambda =new NodejsFunction(this, 'AuthLambda', {
+	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
 		entry: 'lambda/authorizer.ts',
 		handler: 'handler',
 		runtime: aws_lambda.Runtime.NODEJS_18_X,
 		environment: {
 			USER_POOL_ID: userPoolId,
 			APP_CLIENT_ID: clientId,
+			NODE_OPTIONS: '--enable-source-maps'
 		},
 	  });
 	
@@ -93,7 +96,8 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		handler: 'handler',
 		runtime: aws_lambda.Runtime.NODEJS_18_X,
 		environment: {
-			CONN_TABLE_NAME: wsConnectionTable.tableName
+			CONN_TABLE_NAME: wsConnectionTable.tableName,
+			NODE_OPTIONS: '--enable-source-maps',
 		},
 	  });
 
@@ -112,21 +116,25 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	  // Grant Lambda permissions to interact with DynamoDB
 	wsConnectionTable.grantReadWriteData(disconnectWSLambda);
 
-	const authorizer = new agwa.WebSocketLambdaAuthorizer("Authorizer", authLambda, {
-		identitySource: [`route.request.querystring.idToken`],
+	const authorizer = new agwa.WebSocketLambdaAuthorizer("_Authorizer", authLambda, {
+		identitySource: [ 'route.request.querystring.access_token'],
 	  });
-  
+ 
 
 	const webSocketApi = new apigw2.WebSocketApi(this, 'websocket-api', {
 		connectRouteOptions: {
 		  authorizer,
 		  integration: new apigw2Integrations.WebSocketLambdaIntegration('ws-connect-integration', connectWSLambda),
+		  
 		},
 		disconnectRouteOptions: {
 		  integration: new apigw2Integrations.WebSocketLambdaIntegration('ws-disconnect-integration', disconnectWSLambda),
 		},
 	  });
   
+	  webSocketApi.addRoute('authorizer', {
+		integration: new apigw2Integrations.WebSocketLambdaIntegration('ws-auth-integration', authLambda)
+	  });
 	  const webSocketStage = new apigw2.WebSocketStage(this, 'websocket-stage', {
 		webSocketApi: webSocketApi,
 		stageName: 'prod',
@@ -162,8 +170,29 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	  
 	  wsConnectionTable.grantReadData(sendToWSLambda);
 	  webSocketApi.grantManageConnections(sendToWSLambda);
+
 	
-	  //restApi.root.addMethod('POST', new apigw.LambdaIntegration(sendToWSLambda));
+	authLambda.grantInvoke(new ServicePrincipal('apigateway.amazonaws.com', {
+		conditions: {
+		  "ArnLike": {
+			"aws:SourceArn": `arn:aws:execute-api:${Aws.REGION}:${Aws.ACCOUNT_ID}:ycalx2jfg3/*`
+		  }
+		}
+	  }));
+
+	authLambda.role?.grantAssumeRole(new ServicePrincipal("apigateway.amazonaws.com"))
+	connectWSLambda.grantInvoke(new ServicePrincipal('apigateway.amazonaws.com', {
+		conditions: {
+		  "ArnLike": {
+			"aws:SourceArn": `arn:aws:execute-api:${Aws.REGION}:${Aws.ACCOUNT_ID}:ycalx2jfg3/*`
+		  }
+		}
+	  }));
+
+	connectWSLambda.role?.grantAssumeRole(new ServicePrincipal("apigateway.amazonaws.com"))
+	
+	
+	  //restApi.root.addMethod('POSTT', new apigw.LambdaIntegration(sendToWSLambda));
 
   }
   
