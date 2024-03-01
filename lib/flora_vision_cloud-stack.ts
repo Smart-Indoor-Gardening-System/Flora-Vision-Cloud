@@ -46,6 +46,13 @@ export class FloraVisionCloudStack extends cdk.Stack {
       billingMode: BillingMode.PAY_PER_REQUEST,
     });
 
+	// Create Device Table
+	const deviceTable = new Table(this, 'DeviceTable', {
+		partitionKey: { name: 'pk', type: AttributeType.STRING },
+		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
+		billingMode: BillingMode.PAY_PER_REQUEST,
+	  });
+
 	const wsConnectionTable = new Table(this, 'WSConnectionTable', {
 		partitionKey: { name: 'connectionId', type: AttributeType.STRING },
 		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
@@ -71,6 +78,18 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
 	// Grant Lambda permissions to interact with DynamoDB
     sensorDataTable.grantReadWriteData(lambdaFunction);
+
+	// Create Lambda function for adding a device
+	const addDeviceLambda = new NodejsFunction(this, 'AddDeviceLambda', {
+		entry: 'lambda/addDevice.ts',
+		handler: 'handler',
+		runtime: aws_lambda.Runtime.NODEJS_18_X,
+		environment: {
+			TABLE_NAME: deviceTable.tableName,
+		},
+	  });
+
+	  deviceTable.grantReadWriteData(addDeviceLambda);
 
 
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
@@ -152,10 +171,33 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		},
 		deploy: true,
 		defaultCorsPreflightOptions: {
-		  allowMethods: ['POST','GET', 'OPTIONS'],
+			allowMethods: apigw.Cors.ALL_METHODS,
 		  allowOrigins: apigw.Cors.ALL_ORIGINS,
 		},
 	  });
+
+
+	  const addDeviceResource = restApi.root.addResource('addDevice');
+	  addDeviceResource.addMethod(
+		'POST',
+		new apigw.LambdaIntegration(addDeviceLambda),
+		{
+		  methodResponses: [{
+			statusCode: '200',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			},
+		  }],
+		},
+	  );
+	
+
+
+
+
+
+	  
 
 	  const sendToWSLambda = new NodejsFunction(this, 'SendToWebSocketLambda', {
 		entry: 'lambda/send-to-websocket-handler.ts',
