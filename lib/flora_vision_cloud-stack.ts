@@ -46,12 +46,27 @@ export class FloraVisionCloudStack extends cdk.Stack {
       billingMode: BillingMode.PAY_PER_REQUEST,
     });
 
+	const userTable = new Table(this, 'UserTable', {
+		partitionKey: { name: 'userId', type: AttributeType.STRING },
+		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
+		billingMode: BillingMode.PAY_PER_REQUEST,
+	  });
+
 	// Create Device Table
 	const deviceTable = new Table(this, 'DeviceTable', {
 		partitionKey: { name: 'pk', type: AttributeType.STRING },
 		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
 		billingMode: BillingMode.PAY_PER_REQUEST,
 	  });
+
+	  const userDeviceTable = new Table(this, 'UserDeviceTable', {
+		partitionKey: { name: 'userId', type: AttributeType.STRING },
+		sortKey: { name: 'deviceId', type: AttributeType.STRING },
+		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
+		billingMode: BillingMode.PAY_PER_REQUEST,
+	  });
+
+	  
 
 	const wsConnectionTable = new Table(this, 'WSConnectionTable', {
 		partitionKey: { name: 'connectionId', type: AttributeType.STRING },
@@ -78,6 +93,26 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
 	// Grant Lambda permissions to interact with DynamoDB
     sensorDataTable.grantReadWriteData(lambdaFunction);
+
+	const postConfirmationLambda = new NodejsFunction(this, 'PostConfirmationLambda', {
+		entry: 'lambda/postConfirmation.ts',
+		handler: 'handler',
+		runtime: aws_lambda.Runtime.NODEJS_18_X,
+		environment: {
+			TABLE_NAME: userTable.tableName,
+		},
+	  });
+
+
+	  userTable.grantReadWriteData(postConfirmationLambda);
+
+	userPool.addTrigger(
+		cognito.UserPoolOperation.POST_CONFIRMATION,
+		postConfirmationLambda
+	  );
+	
+
+
 
 	// Create Lambda function for adding a device
 	const addDeviceLambda = new NodejsFunction(this, 'AddDeviceLambda', {
