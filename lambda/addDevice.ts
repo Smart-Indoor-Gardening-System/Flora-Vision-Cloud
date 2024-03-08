@@ -1,29 +1,40 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { PutCommand } from '@aws-sdk/lib-dynamodb';
-const dynamodb = new DynamoDB
+import { SQSHandler, SQSMessageAttributes } from 'aws-lambda';
 
-export const handler = async (event: any, context: any): Promise<void> => {
-	try {
-	  console.log(event);
-	  const { DeviceID, password } = event;
+const dynamodb = new DynamoDB({});
 
-	  console.log('Saving device:', DeviceID);
-	  
+export const handler: SQSHandler = async (event: any, context: any): Promise<any> => {
+  try {
+    console.log(event);
 
-	  await dynamodb.send(
-		new PutCommand({
-		  TableName: process.env.TABLE_NAME,
-		  Item: {
-			pk: DeviceID,
-			password,
-			battery:'100'
-		  },
-		})
-	  );
-	} catch (error) {
+    for (const record of event.Records) {
+      const messageAttributes: SQSMessageAttributes = record.messageAttributes;
+      console.log('Message Attributtes -->  ', messageAttributes.AttributeNameHere.stringValue);
+      console.log('Message Body -->  ', record.body);
 
-	  console.error('Error saving device:', error);
-	  throw error;
-	}
-  };
-  
+      const body = JSON.parse(record.body);
+      const { userId, deviceId, isDevicePasswordVerified } = body;
+
+      if (isDevicePasswordVerified) {
+        await dynamodb.send(
+          new PutCommand({
+            TableName: process.env.TABLE_NAME,
+            Item: {
+              userId,
+              deviceId
+            },
+          })
+        );
+
+        return {
+          statusCode: 200,
+          body: JSON.stringify({ message: 'Device added to corresponding user successfully' }),
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Error adding user`s device:', error);
+    throw error;
+  }
+};

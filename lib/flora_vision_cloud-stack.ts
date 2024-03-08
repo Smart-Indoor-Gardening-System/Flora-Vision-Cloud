@@ -9,11 +9,9 @@ import * as apigw2Integrations from '@aws-cdk/aws-apigatewayv2-integrations-alph
 import * as agwa from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import { Effect, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 
-
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
-
-
-
+import * as sqs from 'aws-cdk-lib/aws-sqs';
+import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 export class FloraVisionCloudStack extends cdk.Stack {
 
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -66,8 +64,6 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		billingMode: BillingMode.PAY_PER_REQUEST,
 	  });
 
-	  
-
 	const wsConnectionTable = new Table(this, 'WSConnectionTable', {
 		partitionKey: { name: 'connectionId', type: AttributeType.STRING },
 		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
@@ -110,9 +106,25 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		cognito.UserPoolOperation.POST_CONFIRMATION,
 		postConfirmationLambda
 	  );
-	
 
 
+	// Create SQS Queue for VerifyDevicePasswordLambda-AddDeviceLambda communication
+
+	const queue = new sqs.Queue(this, 'DeviceQueue');
+
+	// Lambda functions
+
+	const verifyDevicePasswordLambda = new NodejsFunction(this, 'VerifyDevicePasswordLambda', {
+		entry: 'lambda/verifyDevicePassword.ts',
+		handler: 'handler',
+		runtime: aws_lambda.Runtime.NODEJS_18_X,
+		environment: {
+			TABLE_NAME: deviceTable.tableName,
+			QUEUE_URL: queue.queueUrl
+		},
+	  });
+
+	  deviceTable.grantReadData(verifyDevicePasswordLambda);
 
 	// Create Lambda function for adding a device
 	const addDeviceLambda = new NodejsFunction(this, 'AddDeviceLambda', {
@@ -120,11 +132,33 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		handler: 'handler',
 		runtime: aws_lambda.Runtime.NODEJS_18_X,
 		environment: {
+			TABLE_NAME: userDeviceTable.tableName,
+		},
+	  });
+
+	  userDeviceTable.grantReadWriteData(addDeviceLambda);
+	  // Grant permissions for sender to send messages to SQS queue
+	  queue.grantSendMessages(verifyDevicePasswordLambda);
+
+	  // Grant permissions for receiver to receive messages from SQS queue
+	  queue.grantConsumeMessages(addDeviceLambda);
+
+	  // Configure SQS as event source for receiver Lambda
+	  addDeviceLambda.addEventSource(new SqsEventSource(queue));
+
+
+
+	  const createDeviceLambda = new NodejsFunction(this, 'CreateDeviceLambda', {
+		entry: 'lambda/createDevice.ts',
+		handler: 'handler',
+		runtime: aws_lambda.Runtime.NODEJS_18_X,
+		environment: {
 			TABLE_NAME: deviceTable.tableName,
 		},
 	  });
 
-	  deviceTable.grantReadWriteData(addDeviceLambda);
+	  deviceTable.grantReadWriteData(createDeviceLambda);
+	 
 
 
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
@@ -139,12 +173,6 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	  });
 	
 
-  
-
-
-	  
-
-	  	
 	  const connectWSLambda = new NodejsFunction(this, 'WebSocketLambda', {
 		entry: 'lambda/connect.ts',
 		handler: 'handler',
@@ -195,11 +223,6 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		autoDeploy: true,
 	  });
 
-
-  
-
-
-  
 	  const restApi = new apigw.RestApi(this, 'rest-api', {
 		deployOptions: {
 		  stageName: 'prod',
@@ -210,12 +233,11 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		  allowOrigins: apigw.Cors.ALL_ORIGINS,
 		},
 	  });
-
-
+ 
 	  const addDeviceResource = restApi.root.addResource('addDevice');
 	  addDeviceResource.addMethod(
 		'POST',
-		new apigw.LambdaIntegration(addDeviceLambda),
+		new apigw.LambdaIntegration(verifyDevicePasswordLambda),
 		{
 		  methodResponses: [{
 			statusCode: '200',
@@ -226,13 +248,7 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		  }],
 		},
 	  );
-	
 
-
-
-
-
-	  
 
 	  const sendToWSLambda = new NodejsFunction(this, 'SendToWebSocketLambda', {
 		entry: 'lambda/send-to-websocket-handler.ts',
@@ -267,8 +283,7 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	  }));
 
 	connectWSLambda.role?.grantAssumeRole(new ServicePrincipal("apigateway.amazonaws.com"))
-	
-	
+
 	  //restApi.root.addMethod('POSTT', new apigw.LambdaIntegration(sendToWSLambda));
 
   }
