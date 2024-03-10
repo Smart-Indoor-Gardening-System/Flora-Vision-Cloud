@@ -18,7 +18,9 @@ export const handler = async (event: any, context: any): Promise<void> => {
 		  Item: {
 			pk: DeviceID,
 			password,
-			battery:'100'
+			battery:'100',
+			plantName:'',
+			plantType:'',
 		  },
 		})
 	  );
