@@ -1,8 +1,10 @@
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBClient  } from '@aws-sdk/client-dynamodb';
+import { PutCommand, QueryCommand, DynamoDBDocumentClient} from '@aws-sdk/lib-dynamodb';
 import { SQSHandler, SQSMessageAttributes } from 'aws-lambda';
+import { Role } from '../enums/roles-enum';
 
-const dynamodb = new DynamoDB({});
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client);
 
 export const handler: SQSHandler = async (event: any, context: any): Promise<any> => {
   try {
@@ -17,12 +19,30 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
       const { userId, deviceId, isDevicePasswordVerified } = body;
 
       if (isDevicePasswordVerified) {
-        await dynamodb.send(
+		var role = Role.normal;
+		/*const params = {
+			TableName: process.env.TABLE_NAME,
+			KeyConditionExpression: 'deviceId = :deviceId AND userId > :userId',
+			ExpressionAttributeValues: {
+				':deviceId':  deviceId,
+				':userId':  userId
+
+			 }
+		};
+	*/
+	/*	const command = new QueryCommand(params);
+        const { Items } = await docClient.send(command);
+		console.log('Items -->  ');
+		console.log(Items);
+		if (Items && Items.length === 0) role = Role.root;
+	  */
+        await docClient.send(
           new PutCommand({
             TableName: process.env.TABLE_NAME,
             Item: {
               userId,
-              deviceId
+              deviceId,
+			  role
             },
           })
         );
