@@ -177,10 +177,12 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	runtime: aws_lambda.Runtime.NODEJS_18_X,
 	environment: {
 		TABLE_NAME: deviceTable.tableName,
+		USER_DEVICE_TABLE_NAME: userDeviceTable.tableName,
 	},
   });
 
   deviceTable.grantReadWriteData(setPlantLambda);
+  userDeviceTable.grantReadData(setPlantLambda);
 
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
 		entry: 'lambda/authorizer.ts',

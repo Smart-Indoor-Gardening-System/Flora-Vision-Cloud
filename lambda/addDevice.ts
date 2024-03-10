@@ -19,30 +19,29 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
       const { userId, deviceId, isDevicePasswordVerified } = body;
 
       if (isDevicePasswordVerified) {
-		var role = Role.normal;
-		/*const params = {
-			TableName: process.env.TABLE_NAME,
-			KeyConditionExpression: 'deviceId = :deviceId AND userId > :userId',
-			ExpressionAttributeValues: {
-				':deviceId':  deviceId,
-				':userId':  userId
+		var role = Role.root;
 
-			 }
-		};
-	*/
-	/*	const command = new QueryCommand(params);
-        const { Items } = await docClient.send(command);
-		console.log('Items -->  ');
-		console.log(Items);
-		if (Items && Items.length === 0) role = Role.root;
-	  */
+	/*	const query = await docClient.send(
+            new QueryCommand({
+                TableName: process.env.TABLE_NAME,
+				KeyConditionExpression: 'userId = :userId',
+				FilterExpression : "deviceId <> :deviceId",
+				ExpressionAttributeValues: {
+					':userId': userId,
+					':deviceId':deviceId
+				}
+            })
+        );
+
+	  if(query.Items && query.Items.length > 0) role = Role.normal;*/
+
         await docClient.send(
           new PutCommand({
             TableName: process.env.TABLE_NAME,
             Item: {
               userId,
               deviceId,
-			  role
+			  privilege:role
             },
           })
         );

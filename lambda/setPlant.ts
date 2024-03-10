@@ -1,13 +1,12 @@
 
 import addCorsResHeaders from '../middlewares/addCorsResHeaders';
 import { DynamoDB, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
-import { UpdateCommand  } from '@aws-sdk/lib-dynamodb';
-
-
+import { UpdateCommand, GetCommand  } from '@aws-sdk/lib-dynamodb';
 
 const dynamodb = new DynamoDB({});
 
 interface EventBody {
+	userId: string;
 	deviceId: string;
 	plantName: string;
 	plantType: string;
@@ -22,7 +21,31 @@ interface EventBody {
 	try {
 		console.log(event);
 		const requestBody: EventBody = JSON.parse(event.body);
-		const { deviceId, plantName, plantType } = requestBody;
+		const { userId, deviceId, plantName, plantType } = requestBody;
+
+		const query = await dynamodb.send(
+			new GetCommand({
+			  TableName: process.env.USER_DEVICE_TABLE_NAME,
+			  Key: {
+				userId: userId,
+				deviceId: deviceId
+			  },
+			  ProjectionExpression: 'privilege'
+			})
+		  );
+	  
+		  if (!query.Item) {
+			return {
+			  statusCode: 404,
+			  body: JSON.stringify({ message: ' User`s Device not found' }),
+			};
+		  }
+		  if(query.Item.privilege !== 'root'){
+			return {
+				statusCode: 403,
+				body: JSON.stringify({ message: 'You are not a root user!' }),
+			  };
+		  }
 
 		const params: any = {
             TableName: process.env.TABLE_NAME,
