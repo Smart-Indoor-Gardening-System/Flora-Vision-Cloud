@@ -2,6 +2,7 @@ import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { GetCommand } from '@aws-sdk/lib-dynamodb';
 import { SQS } from 'aws-sdk';
 import { compare } from 'bcryptjs';
+import addCorsResHeaders from '../middlewares/addCorsResHeaders';
 
 const sqs = new SQS();
 const dynamodb = new DynamoDB({});
@@ -12,7 +13,7 @@ interface EventBody {
   password: string;
 }
 
-export const handler = async (event: any, context: any): Promise<any> => {
+ const verifyDevicePassword = async (event: any, context: any): Promise<any> => {
 	try {
 	  console.log(event);
 	  const requestBody: EventBody = JSON.parse(event.body);
@@ -79,3 +80,4 @@ export const handler = async (event: any, context: any): Promise<any> => {
 	}
   };
   
+  export const handler = addCorsResHeaders(verifyDevicePassword);
