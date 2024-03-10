@@ -8,6 +8,7 @@ import * as apigw2 from '@aws-cdk/aws-apigatewayv2-alpha';
 import * as apigw2Integrations from '@aws-cdk/aws-apigatewayv2-integrations-alpha';
 import * as agwa from "@aws-cdk/aws-apigatewayv2-authorizers-alpha";
 import { Effect, PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
+import { ApiKey, ApiKeySourceType, UsagePlan,  Cors } from 'aws-cdk-lib/aws-apigateway'
 
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 import * as sqs from 'aws-cdk-lib/aws-sqs';
@@ -158,8 +159,28 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	  });
 
 	  deviceTable.grantReadWriteData(createDeviceLambda);
+
+	 /* const getUsersOfDeviceLambda = new NodejsFunction(this, 'GetUsersOfDeviceLambda', {
+		entry: 'lambda/getUsersOfDevice.ts',
+		handler: 'handler',
+		runtime: aws_lambda.Runtime.NODEJS_18_X,
+		environment: {
+			TABLE_NAME: deviceTable.tableName,
+		},
+	  });
+*/
 	 
 
+	const setPlantLambda = new NodejsFunction(this, 'SetPlantLambda', {
+	entry: 'lambda/setPlant.ts',
+	handler: 'handler',
+	runtime: aws_lambda.Runtime.NODEJS_18_X,
+	environment: {
+		TABLE_NAME: deviceTable.tableName,
+	},
+  });
+
+  deviceTable.grantReadWriteData(setPlantLambda);
 
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
 		entry: 'lambda/authorizer.ts',
@@ -229,26 +250,57 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		},
 		deploy: true,
 		defaultCorsPreflightOptions: {
-			allowMethods: apigw.Cors.ALL_METHODS,
-		  allowOrigins: apigw.Cors.ALL_ORIGINS,
+		allowOrigins: Cors.ALL_ORIGINS,
+	     allowMethods: Cors.ALL_METHODS
 		},
+		apiKeySourceType: ApiKeySourceType.HEADER,
 	  });
+
+	  const apiKey = new ApiKey(this, 'ApiKey');
  
+	  const usagePlan = new UsagePlan(this, 'UsagePlan', {
+		name: 'Usage Plan',
+		  apiStages: [
+			{
+			  api:restApi,
+			  stage: restApi.deploymentStage,
+		   },
+		   ],
+		});
+		usagePlan.addApiKey(apiKey);
 	  const addDeviceResource = restApi.root.addResource('addDevice');
 	  addDeviceResource.addMethod(
 		'POST',
 		new apigw.LambdaIntegration(verifyDevicePasswordLambda),
 		{
-		  methodResponses: [{
+		 apiKeyRequired: true,
+		 methodResponses: [{
 			statusCode: '200',
 			responseParameters: {
 			  'method.response.header.Content-Type': true,
 			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+
 			},
 		  }],
 		},
 	  );
 
+	  const setPlantResource = restApi.root.addResource('setPlant');
+	  setPlantResource.addMethod(
+		'PUT',
+		new apigw.LambdaIntegration(setPlantLambda),
+		{
+		  methodResponses: [{
+			statusCode: '204',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
 
 	  const sendToWSLambda = new NodejsFunction(this, 'SendToWebSocketLambda', {
 		entry: 'lambda/send-to-websocket-handler.ts',
@@ -285,7 +337,9 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	connectWSLambda.role?.grantAssumeRole(new ServicePrincipal("apigateway.amazonaws.com"))
 
 	  //restApi.root.addMethod('POSTT', new apigw.LambdaIntegration(sendToWSLambda));
-
+	  new cdk.CfnOutput(this, 'API Key ID', {
+		value: apiKey.keyId,
+	  });
   }
   
 }
