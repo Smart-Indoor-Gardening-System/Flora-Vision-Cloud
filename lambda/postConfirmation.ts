@@ -20,7 +20,8 @@ export const handler = async (event:any) => {
       email: email,
 	  dashboardCustomization: DEFAULT_DASHBOARD_CUSTOMIZATION,
 	  notificationPreference: DEFAULT_NOTIFICATION_PREFERENCE,
-	  metricPreference: DEFAULT_METRIC_PREFERENCE
+	  metricPreference: DEFAULT_METRIC_PREFERENCE,
+	  isNameVisible: true
     }
   };
 
