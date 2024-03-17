@@ -195,6 +195,19 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
   userTable.grantReadWriteData(changeUserSettingsLambda);
 
+  const getDevicesLambda =  new NodejsFunction(this, 'GetDevicesLambda', {
+	entry: 'lambda/getDevices.ts',
+	handler: 'handler',
+	runtime: aws_lambda.Runtime.NODEJS_18_X,
+	environment: {
+		TABLE_NAME: userDeviceTable.tableName,
+		DEVICE_TABLE_NAME: deviceTable.tableName,
+	},
+  });
+
+  userDeviceTable.grantReadWriteData(getDevicesLambda);
+  deviceTable.grantReadWriteData(getDevicesLambda);
+
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
 		entry: 'lambda/authorizer.ts',
 		handler: 'handler',
@@ -331,6 +344,21 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		},
 	  );
 
+	  const getDevicesResource = restApi.root.addResource('getDevices');
+	  getDevicesResource.addMethod(
+		'GET',
+		new apigw.LambdaIntegration(getDevicesLambda),
+		{
+		  methodResponses: [{
+			statusCode: '200',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
 
 	  const sendToWSLambda = new NodejsFunction(this, 'SendToWebSocketLambda', {
 		entry: 'lambda/send-to-websocket-handler.ts',
