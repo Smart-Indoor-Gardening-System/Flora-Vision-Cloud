@@ -67,17 +67,16 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
 	const wsConnectionTable = new Table(this, 'WSConnectionTable', {
 		partitionKey: { name: 'connectionId', type: AttributeType.STRING },
+		sortKey: {name:'deviceId', type: AttributeType.STRING },
 		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
 		billingMode: BillingMode.PAY_PER_REQUEST,
-		
 	  });
 
-	  wsConnectionTable.addGlobalSecondaryIndex({
-		partitionKey: { name: "userId", type: dynamo.AttributeType.STRING },
-		indexName: "userIdIndex",
+	 wsConnectionTable.addGlobalSecondaryIndex({
+		partitionKey: { name: "deviceId", type: dynamo.AttributeType.STRING },
+		indexName: "deviceIdIndex",
 	  });
   
-
 	// Create Lambda function for saving sensor data to db
     const lambdaFunction = new  NodejsFunction(this, 'SensorDataProcessor', {
 	  entry: 'lambda/index.ts',
@@ -111,7 +110,7 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
 	// Create SQS Queue for VerifyDevicePasswordLambda-AddDeviceLambda communication
 
-	const queue = new sqs.Queue(this, 'DeviceQueue');
+	const queue = new sqs.Queue(this, 'DeviceVerifyQueue');
 
 	// Lambda functions
 

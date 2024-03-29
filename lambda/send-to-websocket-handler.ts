@@ -1,15 +1,13 @@
 import { APIGatewayProxyEventV2, APIGatewayProxyResultV2 } from 'aws-lambda';
 import { ApiGatewayManagementApiClient, PostToConnectionCommand } from '@aws-sdk/client-apigatewaymanagementapi';
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { ScanCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBClient  } from '@aws-sdk/client-dynamodb';
+import { QueryCommand,  DynamoDBDocumentClient, GetCommand } from '@aws-sdk/lib-dynamodb';
 
-const dynamodb = new DynamoDB({});
+const client = new DynamoDBClient({});
+const docClient = DynamoDBDocumentClient.from(client);
 
 // Access the WebSocket API URL from environment variables
 //const webSocketApiUrl = process.env.WEBSOCKET_API_URL;
-
-
-
 
 const apiGwManApiClient = new ApiGatewayManagementApiClient({
 	region: process.env.AWS_REGION,
@@ -38,14 +36,22 @@ export const handler = async (event:any, context: any): Promise<any>  => {
 
     // Send data to each connected WebSocket clients
    // await Promise.all(connections.map(connectionId => sendToWebSocket(connectionId, sensorData)));
-   const scanCommand = new ScanCommand({
-    TableName: process.env.CONN_TABLE_NAME,
-  });
-  const scanCommandResp = await dynamodb.send(scanCommand);
-  console.log(`scanCommand resp => ${JSON.stringify(scanCommandResp)}`);
+
+  
+  const query = await docClient.send(
+	new QueryCommand({
+	  TableName: process.env.CONN_TABLE_NAME,
+	  IndexName: 'deviceIdIndex', // Replace with your GSI name
+	  KeyConditionExpression: 'deviceId = :deviceId',
+	  ExpressionAttributeValues: {
+		':deviceId': event.DeviceID,
+	  }
+	})
+  );
+  console.log(`Command resp => ${JSON.stringify(query.Items)}`);
 
   const textEncoder = new TextEncoder();
-  const connectionItems = scanCommandResp.Items || [];
+  const connectionItems = query.Items || [];
 
   for (let ind = 0; ind < connectionItems.length; ind++) {
     const postToConnectionCommandResp = await apiGwManApiClient.send(new PostToConnectionCommand({

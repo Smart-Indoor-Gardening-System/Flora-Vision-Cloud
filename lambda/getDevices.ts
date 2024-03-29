@@ -33,7 +33,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 		const deviceParams = {
 			TableName: process.env.DEVICE_TABLE_NAME, // Your Device table name
 			Key: { pk: device.deviceId  },// Query condition based on deviceId as partition key
-			ProjectionExpression: 'plantName,plantType,battery'
+			ProjectionExpression: 'pk,plantName,plantType,battery'
 		};
 		const getDeviceCommand = new GetCommand(deviceParams);
 		return client.send(getDeviceCommand);
