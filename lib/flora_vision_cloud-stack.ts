@@ -216,6 +216,17 @@ export class FloraVisionCloudStack extends cdk.Stack {
   userDeviceTable.grantReadWriteData(getDevicesLambda);
   deviceTable.grantReadWriteData(getDevicesLambda);
 
+  const deleteUserFromDeviceLambda =  new NodejsFunction(this, 'DeleteUserFromDeviceLambda', {
+	entry: 'lambda/deleteUserFromDevice.ts',
+	handler: 'handler',
+	runtime: aws_lambda.Runtime.NODEJS_18_X,
+	environment: {
+		TABLE_NAME: userDeviceTable.tableName,
+	},
+  });
+
+  userDeviceTable.grantReadWriteData(deleteUserFromDeviceLambda);
+
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
 		entry: 'lambda/authorizer.ts',
 		handler: 'handler',
@@ -372,6 +383,22 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	  getUsersOfDeviceResource.addMethod(
 		'GET',
 		new apigw.LambdaIntegration(getUsersOfDeviceLambda),
+		{
+		  methodResponses: [{
+			statusCode: '200',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
+
+	  const deleteUserFromDeviceResource = restApi.root.addResource('deleteUserFromDevice');
+	  deleteUserFromDeviceResource.addMethod(
+		'DELETE',
+		new apigw.LambdaIntegration(deleteUserFromDeviceLambda),
 		{
 		  methodResponses: [{
 			statusCode: '200',
