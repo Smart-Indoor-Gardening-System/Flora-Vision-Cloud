@@ -65,6 +65,12 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		billingMode: BillingMode.PAY_PER_REQUEST,
 	  });
 
+	  userDeviceTable.addGlobalSecondaryIndex({
+		partitionKey: { name: "deviceId", type: dynamo.AttributeType.STRING },
+		indexName: "deviceIdIndex",
+	  });
+  
+
 	const wsConnectionTable = new Table(this, 'WSConnectionTable', {
 		partitionKey: { name: 'connectionId', type: AttributeType.STRING },
 		sortKey: {name:'deviceId', type: AttributeType.STRING },

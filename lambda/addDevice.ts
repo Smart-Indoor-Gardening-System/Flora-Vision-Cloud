@@ -21,19 +21,18 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
       if (isDevicePasswordVerified) {
 		var role = Role.root;
 
-	/*	const query = await docClient.send(
-            new QueryCommand({
-                TableName: process.env.TABLE_NAME,
-				KeyConditionExpression: 'userId = :userId',
-				FilterExpression : "deviceId <> :deviceId",
-				ExpressionAttributeValues: {
-					':userId': userId,
-					':deviceId':deviceId
-				}
-            })
-        );
+		const query = await docClient.send(
+			new QueryCommand({
+			  TableName: process.env.TABLE_NAME,
+			  IndexName: 'deviceIdIndex', // Replace with your GSI name
+			  KeyConditionExpression: 'deviceId = :deviceId',
+			  ExpressionAttributeValues: {
+				':deviceId': deviceId,
+			  }
+			})
+		  );
 
-	  if(query.Items && query.Items.length > 0) role = Role.normal;*/
+	  if(query.Items && query.Items.length > 0) role = Role.normal;
 
         await docClient.send(
           new PutCommand({
