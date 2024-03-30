@@ -165,16 +165,19 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
 	  deviceTable.grantReadWriteData(createDeviceLambda);
 
-	 /* const getUsersOfDeviceLambda = new NodejsFunction(this, 'GetUsersOfDeviceLambda', {
+	 const getUsersOfDeviceLambda = new NodejsFunction(this, 'GetUsersOfDeviceLambda', {
 		entry: 'lambda/getUsersOfDevice.ts',
 		handler: 'handler',
 		runtime: aws_lambda.Runtime.NODEJS_18_X,
 		environment: {
-			TABLE_NAME: deviceTable.tableName,
+			TABLE_NAME: userDeviceTable.tableName,
+			USER_TABLE_NAME: userTable.tableName,
 		},
 	  });
-*/
-	 
+
+	 userTable.grantReadWriteData(getUsersOfDeviceLambda);
+	 userDeviceTable.grantReadWriteData(getUsersOfDeviceLambda);
+
 
 	const setPlantLambda = new NodejsFunction(this, 'SetPlantLambda', {
 	entry: 'lambda/setPlant.ts',
@@ -364,6 +367,23 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		  }],
 		},
 	  );
+
+	  const getUsersOfDeviceResource = restApi.root.addResource('getUsersOfDevice');
+	  getUsersOfDeviceResource.addMethod(
+		'GET',
+		new apigw.LambdaIntegration(getUsersOfDeviceLambda),
+		{
+		  methodResponses: [{
+			statusCode: '200',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
+
 
 	  const sendToWSLambda = new NodejsFunction(this, 'SendToWebSocketLambda', {
 		entry: 'lambda/send-to-websocket-handler.ts',
