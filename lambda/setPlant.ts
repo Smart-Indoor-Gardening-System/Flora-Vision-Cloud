@@ -52,6 +52,7 @@ interface EventBody {
 	plantName: string;
 	plantType: string;
 	password: string;
+	description: string;
   }
   
  const setPlant = async (event: any, context: any): Promise<any> => {
@@ -63,7 +64,7 @@ interface EventBody {
 	try {
 		console.log(event);
 		const requestBody: EventBody = JSON.parse(event.body);
-		const { userId, deviceId, plantName, plantType,password } = requestBody;
+		const { userId, deviceId, plantName, plantType,password,description} = requestBody;
 
 		const query = await dynamodb.send(
 			new GetCommand({
@@ -95,11 +96,12 @@ interface EventBody {
             Key: {
                 ['pk']: deviceId
             },
-            UpdateExpression: 'set plantName = :plantName, plantType = :plantType, password = :password',
+            UpdateExpression: 'set plantName = :plantName, plantType = :plantType, password = :password, description = :description',
             ExpressionAttributeValues: {
                 ':plantName': plantName,
                 ':plantType': plantType,
-				':password': hashedPassword
+				':password': hashedPassword,
+				':description': description
             },
 			ConditionExpression: 'attribute_exists(pk)',
             ReturnValues: 'UPDATED_NEW'

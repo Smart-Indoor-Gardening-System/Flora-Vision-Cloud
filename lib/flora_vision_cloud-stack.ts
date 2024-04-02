@@ -227,6 +227,18 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
   userDeviceTable.grantReadWriteData(deleteUserFromDeviceLambda);
 
+  const getUserPrivilegeLambda =  new NodejsFunction(this, 'GetUserPrivilegeLambda', {
+	entry: 'lambda/getUserPrivilege.ts',
+	handler: 'handler',
+	runtime: aws_lambda.Runtime.NODEJS_18_X,
+	environment: {
+		TABLE_NAME: userDeviceTable.tableName,
+	},
+  });
+
+  userDeviceTable.grantReadWriteData(getUserPrivilegeLambda);
+
+
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
 		entry: 'lambda/authorizer.ts',
 		handler: 'handler',
@@ -378,6 +390,23 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		  }],
 		},
 	  );
+
+	  const getUserPrivilegeResource = restApi.root.addResource('getUserPrivilege');
+	  getUserPrivilegeResource.addMethod(
+		'GET',
+		new apigw.LambdaIntegration(getUserPrivilegeLambda),
+		{
+		  methodResponses: [{
+			statusCode: '200',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
+
 
 	  const getUsersOfDeviceResource = restApi.root.addResource('getUsersOfDevice');
 	  getUsersOfDeviceResource.addMethod(

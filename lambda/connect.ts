@@ -15,7 +15,7 @@ export const handler: APIGatewayProxyHandler= async (event) => {
   const connectionId = event.requestContext.connectionId!;
   const payload = JSON.parse(event.body || '{}'); // Assuming device ID is included in the payload
   const deviceId = event.queryStringParameters!.deviceId!;
-  const userId = event.requestContext.authorizer!.userId;
+  const userId = event.queryStringParameters!.userId;
 
   // Save the connection ID and associate it with the device ID in DynamoDB
   await saveConnectionId(deviceId, connectionId, userId);

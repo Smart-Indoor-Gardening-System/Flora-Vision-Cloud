@@ -2,7 +2,7 @@
 import addCorsResHeaders from '../middlewares/addCorsResHeaders';
 import { DynamoDB, ConditionalCheckFailedException,  } from '@aws-sdk/client-dynamodb';
 
-import { DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 const dynamodb = new DynamoDB({});
 
  const deleteUserFromDevice = async (event: any, context: any): Promise<any> => {
@@ -12,6 +12,54 @@ const dynamodb = new DynamoDB({});
 		
 		const userId  = event.queryStringParameters!.userId;
 		const deviceId  = event.queryStringParameters!.deviceId;
+		const privilege  = event.queryStringParameters!.privilege;
+		const rootCandidateId = event.queryStringParameters!.rootCandidateId;
+
+		const query = await dynamodb.send(
+			new GetCommand({
+			  TableName: process.env.TABLE_NAME,
+			  Key: {
+				userId: userId,
+				deviceId: deviceId
+			  },
+			  ProjectionExpression: 'privilege'
+			})
+		  );
+	  
+		  if (!query.Item) {
+			return {
+			  statusCode: 404,
+			  body: JSON.stringify({ message: ' User`s Device not found' }),
+			};
+		  }
+		 
+		  if(query.Item.privilege !== privilege){
+			return {
+				statusCode: 400,
+				body: JSON.stringify({ message: 'Privilege does not match. You are not a root user!' }),
+			  };
+		  }
+
+		  if(query.Item.privilege === 'root'){
+
+			const params: any = {
+				TableName: process.env.TABLE_NAME,
+				Key: {
+					userId: rootCandidateId,
+					deviceId
+				},
+				UpdateExpression: 'set privilege = :privilege',
+				ExpressionAttributeValues: {
+					':privilege': 'root',
+				},
+				ConditionExpression: 'attribute_exists(userId)',
+				ReturnValues: 'UPDATED_NEW'
+			};
+	
+	
+		  await dynamodb.send( new UpdateCommand(params));
+		  }
+
 
 		await dynamodb.send(
 			new DeleteCommand({
