@@ -10,7 +10,8 @@ interface SensorData {
   "Temperature Fahrenheit": number,
   "Light Intensity": number,
   "Soil Moisture": number,
-  "CO": number
+  "CO": number,
+  "DeviceID": string,
 }
 
 export const handler = async (event: any, context: any): Promise<void> => {
@@ -27,7 +28,6 @@ export const handler = async (event: any, context: any): Promise<void> => {
       new PutCommand({
         TableName: process.env.TABLE_NAME,
         Item: {
-          pk: `POST#${uuid}`,
           sk: new Date().toISOString(),
           ...sensorData,
         },

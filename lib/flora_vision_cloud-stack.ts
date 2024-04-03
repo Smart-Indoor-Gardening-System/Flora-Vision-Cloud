@@ -39,7 +39,7 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
    // Create DynamoDB tables
     const sensorDataTable = new Table(this, 'SensorDataTable', {
-      partitionKey: { name: 'pk', type: AttributeType.STRING },
+      partitionKey: { name: 'DeviceID', type: AttributeType.STRING },
       sortKey: { name: 'sk', type: AttributeType.STRING },
       removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
       billingMode: BillingMode.PAY_PER_REQUEST,
@@ -238,7 +238,16 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
   userDeviceTable.grantReadWriteData(getUserPrivilegeLambda);
 
+  const getSensorDataLambda =  new NodejsFunction(this, 'GetSensorDataLambda', {
+	entry: 'lambda/getSensorData.ts',
+	handler: 'handler',
+	runtime: aws_lambda.Runtime.NODEJS_18_X,
+	environment: {
+		TABLE_NAME: sensorDataTable.tableName,
+	},
+  });
 
+  sensorDataTable.grantReadWriteData(getSensorDataLambda);
 	const authLambda =new NodejsFunction(this, 'AuthorizerLambda', {
 		entry: 'lambda/authorizer.ts',
 		handler: 'handler',
@@ -390,6 +399,23 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		  }],
 		},
 	  );
+
+	  const getSensorDataResource = restApi.root.addResource('getSensorData');
+	  getSensorDataResource.addMethod(
+		'GET',
+		new apigw.LambdaIntegration(getSensorDataLambda),
+		{
+		  methodResponses: [{
+			statusCode: '200',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
+
 
 	  const getUserPrivilegeResource = restApi.root.addResource('getUserPrivilege');
 	  getUserPrivilegeResource.addMethod(
