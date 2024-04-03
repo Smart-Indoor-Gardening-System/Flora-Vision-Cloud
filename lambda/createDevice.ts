@@ -1,5 +1,5 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { PutCommand } from '@aws-sdk/lib-dynamodb';
+import { PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 // Copyright Amazon.com Inc. or its affiliates. All Rights Reserved.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -58,7 +58,7 @@ const getEncryptedPassword = async (devicePassword:string) => {
 
 }
 
-export const handler = async (event: any, context: any): Promise<void> => {
+export const handler = async (event: any, context: any): Promise<any> => {
 	try {
 	  console.log(event);
 	  const { DeviceID, password } = event;
@@ -66,6 +66,23 @@ export const handler = async (event: any, context: any): Promise<void> => {
 
 	  console.log('Saving device:', DeviceID);
 	  
+		const query = await dynamodb.send(
+			new GetCommand({
+			  TableName: process.env.TABLE_NAME,
+			  Key: {
+				pk: DeviceID
+			  },
+			  ProjectionExpression: 'pk'
+			})
+		  );
+	  
+		  if (query.Item) {
+			return {
+			  statusCode: 400,
+			  body: JSON.stringify({ message: 'Device already created' }),
+			};
+		  }
+	
 
 	  await dynamodb.send(
 		new PutCommand({
