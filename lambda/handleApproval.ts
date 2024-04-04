@@ -2,7 +2,7 @@
 
 import addCorsResHeaders from '../middlewares/addCorsResHeaders';
 import { DynamoDB, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
-import { UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 
 
 const dynamodb = new DynamoDB({});
@@ -25,6 +25,19 @@ interface EventBody {
 		const requestBody: EventBody = JSON.parse(event.body);
 		const { action, userId, deviceId } = requestBody;
 
+		const query = await dynamodb.send(
+			new GetCommand({
+			  TableName: process.env.TABLE_NAME,
+			  Key: {
+				userId: userId,
+				deviceId: deviceId
+			  },
+			  ProjectionExpression: 'privilege'
+			})
+		  );
+			if(query.Item?.privilege !== 'root') {
+				return { statusCode: 403, body: JSON.stringify({ message: 'You are not authorized to perform this action' }) };
+			}
 
 		const params: any = {
             TableName: process.env.TABLE_NAME,
