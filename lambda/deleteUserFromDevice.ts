@@ -2,8 +2,12 @@
 import addCorsResHeaders from '../middlewares/addCorsResHeaders';
 import { DynamoDB, ConditionalCheckFailedException,  } from '@aws-sdk/client-dynamodb';
 
-import { DeleteCommand, GetCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, GetCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { rootCertificates } from 'tls';
 const dynamodb = new DynamoDB({});
+
+// if candidate item already existed  then update the privilege to root
+// if not then create a new item with privilege root
 
  const deleteUserFromDevice = async (event: any, context: any): Promise<any> => {
 
@@ -12,7 +16,6 @@ const dynamodb = new DynamoDB({});
 		
 		const userId  = event.queryStringParameters!.userId;
 		const deviceId  = event.queryStringParameters!.deviceId;
-		const privilege  = event.queryStringParameters!.privilege;
 		const rootCandidateId = event.queryStringParameters!.rootCandidateId;
 
 		const query = await dynamodb.send(
@@ -32,15 +35,32 @@ const dynamodb = new DynamoDB({});
 			  body: JSON.stringify({ message: ' User`s Device not found' }),
 			};
 		  }
-		 
-		  if(query.Item.privilege !== privilege){
-			return {
-				statusCode: 400,
-				body: JSON.stringify({ message: 'Privilege does not match. You are not a root user!' }),
-			  };
-		  }
 
 		  if(query.Item.privilege === 'root'){
+
+			const candidateQuery = await dynamodb.send(
+				new GetCommand({
+				  TableName: process.env.TABLE_NAME,
+				  Key: {
+					userId: rootCandidateId,
+					deviceId: deviceId
+				  },
+				  
+				})
+			  );
+			  if(!candidateQuery.Item){
+				 await dynamodb.send(
+					new PutCommand({
+						TableName: process.env.TABLE_NAME,
+						Item: {
+						  userId: rootCandidateId,
+						  deviceId,
+						  privilege:'root',
+						},
+					  })
+				  );
+			
+			  }
 
 			const params: any = {
 				TableName: process.env.TABLE_NAME,
@@ -72,7 +92,7 @@ const dynamodb = new DynamoDB({});
 			})
 		  );
 
-		  return { statusCode: 200, body: JSON.stringify({ message: 'User deleted from the device!' }) };
+		  return { statusCode: 200, body: JSON.stringify({ message: 'User deleted from the device. Root changed successfully!' }) };
         
 
 	} 
