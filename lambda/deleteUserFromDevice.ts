@@ -37,49 +37,8 @@ const dynamodb = new DynamoDB({});
 		  }
 
 		  if(query.Item.privilege === 'root'){
-
-			const candidateQuery = await dynamodb.send(
-				new GetCommand({
-				  TableName: process.env.TABLE_NAME,
-				  Key: {
-					userId: rootCandidateId,
-					deviceId: deviceId
-				  },
-				  
-				})
-			  );
-			  if(!candidateQuery.Item){
-				 await dynamodb.send(
-					new PutCommand({
-						TableName: process.env.TABLE_NAME,
-						Item: {
-						  userId: rootCandidateId,
-						  deviceId,
-						  privilege:'root',
-						},
-					  })
-				  );
-			
-			  }
-
-			const params: any = {
-				TableName: process.env.TABLE_NAME,
-				Key: {
-					userId: rootCandidateId,
-					deviceId
-				},
-				UpdateExpression: 'set privilege = :privilege',
-				ExpressionAttributeValues: {
-					':privilege': 'root',
-				},
-				ConditionExpression: 'attribute_exists(userId)',
-				ReturnValues: 'UPDATED_NEW'
-			};
-	
-	
-		  await dynamodb.send( new UpdateCommand(params));
+			await handleRootUserDelete(deviceId, rootCandidateId);
 		  }
-
 
 		await dynamodb.send(
 			new DeleteCommand({
@@ -93,7 +52,6 @@ const dynamodb = new DynamoDB({});
 		  );
 
 		  return { statusCode: 200, body: JSON.stringify({ message: 'User deleted from the device. Root changed successfully!' }) };
-        
 
 	} 
 	catch (error: any) {
@@ -103,5 +61,52 @@ const dynamodb = new DynamoDB({});
         throw error;
     }
   };
+
+const handleRootUserDelete = async ( deviceId: string, rootCandidateId:string) => {
+	const candidateQuery = await dynamodb.send(
+		new GetCommand({
+		  TableName: process.env.TABLE_NAME,
+		  Key: {
+			userId: rootCandidateId,
+			deviceId: deviceId
+		  },
+		  
+		})
+	  );
+	  if(!candidateQuery.Item){
+		 await dynamodb.send(
+			new PutCommand({
+				TableName: process.env.TABLE_NAME,
+				Item: {
+				  userId: rootCandidateId,
+				  deviceId,
+				  privilege:'root',
+				},
+			  })
+		  );
+	
+	  }
+	  else{
+
+		const params: any = {
+			TableName: process.env.TABLE_NAME,
+			Key: {
+				userId: rootCandidateId,
+				deviceId
+			},
+			UpdateExpression: 'set privilege = :privilege',
+			ExpressionAttributeValues: {
+				':privilege': 'root',
+			},
+			ConditionExpression: 'attribute_exists(userId)',
+			ReturnValues: 'UPDATED_NEW'
+		};
+
+
+	  await dynamodb.send( new UpdateCommand(params));
+
+	  }
+
+};
 
 export const handler = addCorsResHeaders(deleteUserFromDevice);
