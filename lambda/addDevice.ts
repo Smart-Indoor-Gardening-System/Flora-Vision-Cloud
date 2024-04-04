@@ -16,7 +16,7 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
       console.log('Message Body -->  ', record.body);
 
       const body = JSON.parse(record.body);
-      const { userId, deviceId, isDevicePasswordVerified, description } = body;
+      const { userId, deviceId, isDevicePasswordVerified } = body;
 
       if (isDevicePasswordVerified) {
 		var role = Role.root;
@@ -41,7 +41,7 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
               userId,
               deviceId,
 			  privilege:role,
-			  description
+			  approveStatus: role === Role.root ?  'approved' : 'pending',
             },
           })
         );

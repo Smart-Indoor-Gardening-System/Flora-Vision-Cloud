@@ -20,8 +20,10 @@ const docClient = DynamoDBDocumentClient.from(client);
             new QueryCommand({
                 TableName: process.env.TABLE_NAME,
 				KeyConditionExpression: 'userId = :userId',
+				FilterExpression: 'approveStatus = :approveStatus',
 				ExpressionAttributeValues: {
 					':userId': userId,
+					':approveStatus': 'approved'
 				}
             })
         );

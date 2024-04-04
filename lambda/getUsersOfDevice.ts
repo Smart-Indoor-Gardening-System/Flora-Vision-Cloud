@@ -9,7 +9,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 
  const getUsersOfDevice = async (event: any, context: any): Promise<any> => {
 
-
+// Todo: Implement Root User Privileges
 	try {
 		console.log(event);
 		
