@@ -12,22 +12,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 		console.log(event);
 		const deviceId  = event.queryStringParameters!.deviceId;
 		const timeFrame  = event.queryStringParameters!.timeFrame;
-
-		let startDate = new Date();
-		if(timeFrame === 'daily') {
-			startDate.setDate(startDate.getDate() - 1);
-		}
-		else if (timeFrame === 'weekly') {
-			startDate.setDate(startDate.getDate() - 7);
-		} else if (timeFrame === 'monthly') {
-			startDate.setMonth(startDate.getMonth() - 1);
-		} else {
-			return {
-				statusCode: 400,
-				body: JSON.stringify({ message: "Invalid timeFrame parameter" })
-			};
-		}
-		
+		const startDate = calcStartDate(timeFrame);
 
 		const query = await docClient.send(
             new QueryCommand({
@@ -56,4 +41,18 @@ const docClient = DynamoDBDocumentClient.from(client);
     }
   };
 
+const calcStartDate = (timeFrame: string) => {
+	let startDate = new Date();
+		if(timeFrame === 'daily') {
+			startDate.setDate(startDate.getDate() - 1);
+		}
+		else if (timeFrame === 'weekly') {
+			startDate.setDate(startDate.getDate() - 7);
+		} else if (timeFrame === 'monthly') {
+			startDate.setMonth(startDate.getMonth() - 1);
+		} else {
+			throw new Error('Invalid timeFrame');
+		}
+		return startDate;
+};
 export const handler = addCorsResHeaders(getSensorData);
