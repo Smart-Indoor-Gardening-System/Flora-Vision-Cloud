@@ -9,10 +9,10 @@ const dynamodb = new DynamoDB({});
 
 interface EventBody {
 	action: string;
-	userId:string;
+	rootId: string;
+	normalUserId:string;
 	deviceId:string;
   }
-  
 
  const handleApproval = async (event: any, context: any): Promise<any> => {
 
@@ -23,13 +23,13 @@ interface EventBody {
 	try {
 		console.log(event);
 		const requestBody: EventBody = JSON.parse(event.body);
-		const { action, userId, deviceId } = requestBody;
+		const { action, rootId,normalUserId, deviceId } = requestBody;
 
 		const query = await dynamodb.send(
 			new GetCommand({
 			  TableName: process.env.TABLE_NAME,
 			  Key: {
-				userId: userId,
+				userId: rootId,
 				deviceId: deviceId
 			  },
 			  ProjectionExpression: 'privilege'
@@ -42,7 +42,7 @@ interface EventBody {
 		const params: any = {
             TableName: process.env.TABLE_NAME,
             Key: {
-                userId,
+                userId: normalUserId,
 				deviceId
             },
             UpdateExpression: 'set approveStatus = :approveStatus',
