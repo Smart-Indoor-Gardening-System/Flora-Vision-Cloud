@@ -12,6 +12,31 @@ const docClient = DynamoDBDocumentClient.from(client);
 		console.log(event);
 		const deviceId  = event.queryStringParameters!.deviceId;
 		const timeFrame  = event.queryStringParameters!.timeFrame;
+		const userId  = event.queryStringParameters!.userId;
+
+		const approveStatusQuery = await client.send(
+			new GetCommand({
+			  TableName: process.env.USER_DEVICE_TABLE_NAME,
+			  Key: {
+				userId,
+				deviceId
+			  },
+			  ProjectionExpression: 'approveStatus'
+			})
+		  );
+
+		  if(!approveStatusQuery.Item ){
+			return { statusCode: 400, body: JSON.stringify({ message: 'Record not found' }) };
+		  }
+
+		  const { approveStatus } = approveStatusQuery.Item;
+
+	
+		  if(approveStatus !== 'approved') {
+			return {statusCode: 403, body: JSON.stringify({ message: 'You are not authorized to perform this action',data:[] })};
+		  }
+
+
 		const startDate = calcStartDate(timeFrame);
 
 		const query = await docClient.send(
@@ -31,7 +56,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 	} 
 	return {
 		statusCode: 200,
-		body: JSON.stringify({ data: query.Items })
+		body: JSON.stringify({ data: query.Items, message: 'Sensor data fetched successfully'})
 	};
 	
 
@@ -55,4 +80,6 @@ const calcStartDate = (timeFrame: string) => {
 		}
 		return startDate;
 };
+
+
 export const handler = addCorsResHeaders(getSensorData);
