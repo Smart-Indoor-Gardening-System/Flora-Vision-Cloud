@@ -9,19 +9,22 @@ const docClient = DynamoDBDocumentClient.from(client);
 
  const getUsersOfDevice = async (event: any, context: any): Promise<any> => {
 
-// Todo: Implement Root User Privileges
 	try {
 		console.log(event);
 		
 		const deviceId  = event.queryStringParameters!.deviceId;
+		const clientId = event.queryStringParameters!.clientId;
+		const approveStatus  = event.queryStringParameters!.approveStatus;
 
 		const query = await docClient.send(
 			new QueryCommand({
 			  TableName: process.env.TABLE_NAME,
 			  IndexName: 'deviceIdIndex', 
+			  FilterExpression: 'approveStatus = :approveStatus',
 			  KeyConditionExpression: 'deviceId = :deviceId',
 			  ExpressionAttributeValues: {
 				':deviceId': deviceId,
+				':approveStatus': approveStatus
 			  }
 			})
 		  );
@@ -45,9 +48,32 @@ const docClient = DynamoDBDocumentClient.from(client);
 	// Extract device attributes from each response
 	const users = userResponses.map(response => response.Item);
 
-	const filteredUsers = users.filter((user: any) => user.isNameVisible === true);
+	const privilegeQuery = await client.send(
+		new GetCommand({
+		  TableName: process.env.TABLE_NAME,
+		  Key: {
+			userId: clientId,
+			deviceId: deviceId
+		  },
+		  ProjectionExpression: 'privilege'
+		})
+	  );
+  
+	  if (!privilegeQuery.Item) {
+		return {
+		  statusCode: 404,
+		  body: JSON.stringify({ message: ' User`s Device not found' }),
+		};
+	  }
 
-	  return { statusCode: 200, body: JSON.stringify({filteredUsers}) };
+	  const { privilege } = privilegeQuery.Item;
+	  if (privilege === 'root') {
+		return { statusCode: 200, body: JSON.stringify({users}) };
+	  }
+
+	const filteredUsers =  users.filter((user: any) => user.isNameVisible === true);
+
+	  return { statusCode: 200, body: JSON.stringify({users:filteredUsers}) };
 
 	} 
 	catch (error: any) {
