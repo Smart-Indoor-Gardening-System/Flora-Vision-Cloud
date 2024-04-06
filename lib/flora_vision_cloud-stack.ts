@@ -37,6 +37,8 @@ export class FloraVisionCloudStack extends cdk.Stack {
     const userPoolId = userPool.userPoolId;
     const clientId = client.userPoolClientId;
 
+
+
    // Create DynamoDB tables
     const sensorDataTable = new Table(this, 'SensorDataTable', {
       partitionKey: { name: 'DeviceID', type: AttributeType.STRING },
@@ -118,7 +120,17 @@ export class FloraVisionCloudStack extends cdk.Stack {
 
 	const queue = new sqs.Queue(this, 'DeviceVerifyQueue');
 
+	// Create SQS Queue for HandleApproveLambda-ApproveNotierLambda communication
+	const approvalQueue = new sqs.Queue(this, 'ApprovalQueue');
+
 	// Lambda functions
+
+	const approveNotifierLambda = new NodejsFunction(this, 'ApproveNotifierLambda', {
+		entry: 'lambda/approveNotifier.ts',
+		handler: 'handler',
+		runtime: aws_lambda.Runtime.NODEJS_18_X,
+	  });
+
 
 	const verifyDevicePasswordLambda = new NodejsFunction(this, 'VerifyDevicePasswordLambda', {
 		entry: 'lambda/verifyDevicePassword.ts',
@@ -199,10 +211,21 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		runtime: aws_lambda.Runtime.NODEJS_18_X,
 		environment: {
 			TABLE_NAME: userDeviceTable.tableName,
+			USER_TABLE_NAME: userTable.tableName,
+			QUEUE_URL: approvalQueue.queueUrl,
 		},
 	  });
 	
 	  userDeviceTable.grantReadWriteData(handleApprovalLambda);
+	  approvalQueue.grantSendMessages(handleApprovalLambda);
+	  userTable.grantReadWriteData(handleApprovalLambda);
+
+	  // Grant permissions for receiver to receive messages from SQS queue
+	 approvalQueue.grantConsumeMessages(approveNotifierLambda);
+
+	  // Configure SQS as event source for receiver Lambda
+	  approveNotifierLambda.addEventSource(new SqsEventSource(approvalQueue));
+
 
 	const  editDeviceLambda = new NodejsFunction(this, 'editDeviceLambda', {
 		entry: 'lambda/editDevice.ts',

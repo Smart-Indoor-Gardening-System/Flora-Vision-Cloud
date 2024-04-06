@@ -3,8 +3,9 @@
 import addCorsResHeaders from '../middlewares/addCorsResHeaders';
 import { DynamoDB, ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import { UpdateCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { SQS } from 'aws-sdk';
 
-
+const sqs = new SQS();
 const dynamodb = new DynamoDB({});
 
 interface EventBody {
@@ -39,6 +40,21 @@ interface EventBody {
 				return { statusCode: 403, body: JSON.stringify({ message: 'You are not authorized to perform this action' }) };
 			}
 
+			const mailQuery = await dynamodb.send(
+				new GetCommand({
+				  TableName: process.env.USER_TABLE_NAME,
+				  Key: {
+					userId: normalUserId,
+				  },
+				  ProjectionExpression: 'email'
+				})
+			  );
+
+			  if(!mailQuery.Item) {
+				return { statusCode: 400, body: JSON.stringify({ message: 'User not found' }) };
+			  }
+			  const { email } = mailQuery.Item;
+
 		const params: any = {
             TableName: process.env.TABLE_NAME,
             Key: {
@@ -54,9 +70,19 @@ interface EventBody {
             ReturnValues: 'UPDATED_NEW'
         };
 
-
+	const queueUrl: string = process.env.QUEUE_URL as string;
 	  await dynamodb.send( new UpdateCommand(params));
-	  return { statusCode: 204, body: JSON.stringify({ message: 'Approve status changed!' }) };
+	  await sqs.sendMessage({
+		QueueUrl: queueUrl,
+		MessageBody: JSON.stringify({ notificationPreference:'mail', email, action }),
+		MessageAttributes: {
+		  AttributeNameHere: {
+			StringValue: 'notificationPreference',
+			DataType: 'String',
+		  },
+		},
+	  }).promise();
+	  return { statusCode: 204, body: JSON.stringify({ message: 'Approve status changed! Notifier triggered' }) };
 
 	} 
 	catch (error: any) {
