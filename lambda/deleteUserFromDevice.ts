@@ -81,6 +81,7 @@ const handleRootUserDelete = async ( deviceId: string, rootCandidateId:string) =
 				  userId: rootCandidateId,
 				  deviceId,
 				  privilege:'root',
+				  approveStatus: 'approved',
 				},
 			  })
 		  );
@@ -94,9 +95,10 @@ const handleRootUserDelete = async ( deviceId: string, rootCandidateId:string) =
 				userId: rootCandidateId,
 				deviceId
 			},
-			UpdateExpression: 'set privilege = :privilege',
+			UpdateExpression: 'set privilege = :privilege, approveStatus = :approveStatus',
 			ExpressionAttributeValues: {
 				':privilege': 'root',
+				':approveStatus': 'approved'
 			},
 			ConditionExpression: 'attribute_exists(userId)',
 			ReturnValues: 'UPDATED_NEW'
