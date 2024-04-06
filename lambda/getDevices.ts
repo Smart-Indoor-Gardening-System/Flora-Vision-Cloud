@@ -15,6 +15,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 		console.log(event);
 		
 		const userId  = event.queryStringParameters!.userId;
+		const approveStatus  = event.queryStringParameters!.approveStatus;
 
 		const query = await docClient.send(
             new QueryCommand({
@@ -23,7 +24,7 @@ const docClient = DynamoDBDocumentClient.from(client);
 				FilterExpression: 'approveStatus = :approveStatus',
 				ExpressionAttributeValues: {
 					':userId': userId,
-					':approveStatus': 'approved'
+					':approveStatus': approveStatus
 				}
             })
         );
