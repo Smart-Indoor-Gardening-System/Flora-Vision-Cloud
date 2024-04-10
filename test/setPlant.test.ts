@@ -1,14 +1,24 @@
 import { handler } from '../lambda/setPlant';
 
 // Mock DynamoDB client
-jest.mock('@aws-sdk/client-dynamodb', () => ({
-  DynamoDB: jest.fn(() => ({
-	send: jest.fn().mockResolvedValue({ Item: null }),
-  })),
-  ConditionalCheckFailedException: jest.fn(),
-  UpdateCommand: jest.fn(),
-}));
-
+jest.mock('@aws-sdk/client-dynamodb', () => {
+	const mockGetCommandResponse = {
+	  Item: null, // Default response
+	};
+  
+	return {
+	  DynamoDB: jest.fn(() => ({
+		send: jest.fn().mockResolvedValue(mockGetCommandResponse),
+	  })),
+	  ConditionalCheckFailedException: jest.fn(),
+	  UpdateCommand: jest.fn(),
+	  // Function to dynamically set the response for GetCommand based on the test case
+	  setGetCommandResponse: (response:any) => {
+		mockGetCommandResponse.Item = response;
+	  },
+	};
+  });
+  
 
 jest.mock('@aws-sdk/lib-dynamodb', () => ({
 	GetCommand: jest.fn(),
@@ -61,14 +71,23 @@ describe('Lambda Handler', () => {
 
   it('should return 404 if user device not found', async () => {
     // Mock DynamoDB response for GetCommand
-    const mockSend = jest.fn().mockResolvedValue({ Item: null });
-    require('@aws-sdk/client-dynamodb').DynamoDB.prototype.send = mockSend;
-
+	require('@aws-sdk/client-dynamodb').setGetCommandResponse(null);
     const response = await handler(event, context);
     expect(response.statusCode).toBe(404);
     expect(JSON.parse(response.body)).toEqual({
       message: ' User`s Device not found',
     });
+  });
+
+  it('should return 403 if user is not a root user', async () => {
+	// Set mock response to privilege: 'normal' for this test case
+    require('@aws-sdk/client-dynamodb').setGetCommandResponse({ privilege: 'normal' });
+	
+	const response = await handler(event, context);
+	expect(response.statusCode).toBe(403);
+	expect(JSON.parse(response.body)).toEqual({
+	  message: 'You are not a root user!',
+	});
   });
 
   // Add more test cases for other scenarios
