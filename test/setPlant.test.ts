@@ -22,6 +22,7 @@ jest.mock('@aws-sdk/client-dynamodb', () => {
 
 jest.mock('@aws-sdk/lib-dynamodb', () => ({
 	GetCommand: jest.fn(),
+	UpdateCommand: jest.fn()
   }));
 
 // Mock KMS client
@@ -89,6 +90,21 @@ describe('Lambda Handler', () => {
 	  message: 'You are not a root user!',
 	});
   });
+
+  it('should return 204 if plant settings are updated successfully', async () => {
+    // Mock DynamoDB response for GetCommand
+    const mockGetCommandResponse = { privilege: 'root' };
+    require('@aws-sdk/client-dynamodb').setGetCommandResponse(mockGetCommandResponse);
+  
+    // Mock DynamoDB response for UpdateCommand
+    const mockUpdateCommandResponse = { Attributes: { /* Updated attributes */ } };
+    require('@aws-sdk/client-dynamodb').DynamoDB.prototype.send = jest.fn().mockResolvedValue(mockUpdateCommandResponse);
+
+    const response = await handler(event, context);
+    expect(response.statusCode).toBe(204);
+    // You can add additional assertions here if necessary
+});
+
 
   // Add more test cases for other scenarios
 });
