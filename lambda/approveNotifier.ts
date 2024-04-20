@@ -1,6 +1,7 @@
 import { DynamoDBClient  } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient} from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand} from '@aws-sdk/lib-dynamodb';
 import { SQSHandler, SQSMessageAttributes } from 'aws-lambda';
+import { randomUUID } from 'crypto';
 const nodemailer = require("nodemailer");
 
 const client = new DynamoDBClient({});
@@ -16,7 +17,8 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
       console.log('Message Body -->  ', record.body);
 
       const body = JSON.parse(record.body);
-      const { notificationPreference, email, action } = body;
+      const { notificationPreference, email, action, userId, rootUserMail, deviceId } = body;
+	  console.log("DEVICE ID: ",deviceId);
 
       if (notificationPreference === 'mail') {
 		let transporter = nodemailer.createTransport({
@@ -35,15 +37,30 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
 			to: email,
 			subject: action === "approved" ? "Your Device Add Request Approved  ✔ 🌱" : "Your Device Add Request Rejected 😢", 
 			text: "Your Device Add Request Approved ✔",
-			html: generateMailTemplate(action),
+			html: generateMailTemplate(action,rootUserMail,deviceId),
 		  });
+
+		  const uuid = randomUUID();
+		  await docClient.send(
+			new PutCommand({
+			  TableName: process.env.TABLE_NAME,
+			  Item: {
+				userId,
+				notificationId: `POST#${uuid}`,
+				date: new Date().toISOString(),
+				type: 'approval',
+				markedStatus: "unmarked",
+				message: action === "approved" ? `Your Device with Id:${deviceId} Add Request Approved by ${rootUserMail} ✔ 🌱` : `Your Device  with Id:${deviceId} Add Request Rejected by ${rootUserMail} 😢`
+			  },
+			})
+		  );
 	  
 	
 		return {
 			statusCode: 200,
 			body: JSON.stringify(
 			  {
-				message: 'Mail sent successfully.',
+				message: 'Mail and Notification sent successfully.',
 				data: {
 					input: event,
 					messageId: info.messageId,
@@ -63,7 +80,7 @@ export const handler: SQSHandler = async (event: any, context: any): Promise<any
 };
 
 
-const generateMailTemplate = (action: string) => { 
+const generateMailTemplate = (action:string,rootUserMail:string, deviceId:string) => { 
 	if(action ==="approved"){
 		return `<!DOCTYPE html>
 		<html lang="en">
@@ -110,10 +127,10 @@ const generateMailTemplate = (action: string) => {
 		<body>
 		<div class="container">
 			<div class="header">
-				<h1>Your Device Add Request Approved 🎉<span style="font-size: 24px;">✔</span></h1>
+				<h1>Your Device With Id:${deviceId} Add Request Approved 🎉<span style="font-size: 24px;">✔</span></h1>
 			</div>
 			<div class="content">
-				<p>Congratulations! Your request to add a new device has been approved. It's time to dive into the metrics and take your indoor gardening to the next level! 🌿✨</p>
+				<p>Congratulations! Your request to add a new device has been approved by ${rootUserMail}. It's time to dive into the metrics and take your indoor gardening to the next level! 🌿✨</p>
 				<p>Click the button below to view the metrics:</p>
 				<a href="http://localhost:5173/Devices" class="button">View Metrics</a>
 			</div>
@@ -169,11 +186,11 @@ const generateMailTemplate = (action: string) => {
 		<body>
 		<div class="container">
 			<div class="header">
-				<h1>Oops! Your Device Add Request Rejected 😢</h1>
+				<h1>Oops! Your Device With Id:${deviceId} Add Request Rejected 😢</h1>
 			</div>
 			<div class="content">
 				<p>We're sorry, but your request to add a new device has been rejected this time. Don't worry, though! Let's work together to get everything sorted out.</p>
-				<p>If you have any questions or need assistance, feel free to reach out to us.</p>
+				<p>If you have any questions or need assistance, feel free to reach out to the device owner 📧: ${rootUserMail}</p>
 				<p>Keep growing! 🌱</p>
 			</div>
 		</div>
