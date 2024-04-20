@@ -55,6 +55,21 @@ interface EventBody {
 			  }
 			  const { email } = mailQuery.Item;
 
+			  const rootMailQuery = await dynamodb.send(
+				new GetCommand({
+				  TableName: process.env.USER_TABLE_NAME,
+				  Key: {
+					userId: rootId,
+				  },
+				  ProjectionExpression: 'email'
+				})
+			  );
+
+			  if(!rootMailQuery.Item) {
+				return { statusCode: 400, body: JSON.stringify({ message: 'Root User Mail not found' }) };
+			  }
+			  const rootUserMail = rootMailQuery.Item.email;
+
 		const params: any = {
             TableName: process.env.TABLE_NAME,
             Key: {
@@ -72,9 +87,10 @@ interface EventBody {
 
 	const queueUrl: string = process.env.QUEUE_URL as string;
 	  await dynamodb.send( new UpdateCommand(params));
+	  console.log("DEVICE ID: ", deviceId)
 	  await sqs.sendMessage({
 		QueueUrl: queueUrl,
-		MessageBody: JSON.stringify({ notificationPreference:'mail', email, action }),
+		MessageBody: JSON.stringify({ notificationPreference:'mail', email, action, userId: normalUserId,rootUserMail,deviceId}),
 		MessageAttributes: {
 		  AttributeNameHere: {
 			StringValue: 'notificationPreference',
