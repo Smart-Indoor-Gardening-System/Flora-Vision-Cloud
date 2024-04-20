@@ -2,7 +2,7 @@
 import addCorsResHeaders from '../middlewares/addCorsResHeaders';
 import { DynamoDB, ConditionalCheckFailedException,  } from '@aws-sdk/client-dynamodb';
 
-import { DeleteCommand, GetCommand, UpdateCommand, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DeleteCommand, GetCommand, UpdateCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { rootCertificates } from 'tls';
 const dynamodb = new DynamoDB({});
 
@@ -63,6 +63,47 @@ const dynamodb = new DynamoDB({});
   };
 
 const handleRootUserDelete = async ( deviceId: string, rootCandidateId:string) => {
+	if(rootCandidateId === undefined){
+		// delete all normal users from the device if the root candidate is not provided
+		
+		const normalUsersDeleteQuery  = await dynamodb.send(
+			new QueryCommand({
+			  TableName: process.env.TABLE_NAME,
+			  IndexName: 'deviceIdIndex', 
+			  FilterExpression: 'approveStatus = :approveStatus and privilege = :privilege',
+			  KeyConditionExpression: 'deviceId = :deviceId',
+			  ExpressionAttributeValues: {
+				':deviceId': deviceId,
+				':approveStatus': 'approved',
+				':privilege': 'normal'
+			  }
+			})
+		  );
+		  if(!normalUsersDeleteQuery.Items) return;
+		  const normalUsers = normalUsersDeleteQuery.Items;
+		  for(const user of normalUsers){
+			await dynamodb.send(
+				new DeleteCommand({
+				  TableName:  process.env.TABLE_NAME,
+				  Key: {
+					userId: user.userId,
+					deviceId
+				  },
+				  ConditionExpression: 'attribute_exists(userId)'
+				}));
+		  }
+		  await dynamodb.send(
+			new DeleteCommand({
+			  TableName:  process.env.DEVICE_TABLE_NAME,
+			  Key: {
+				pk:deviceId
+			  },
+			  ConditionExpression: 'attribute_exists(pk)'
+			}));
+		 return;
+
+	}
+
 	const candidateQuery = await dynamodb.send(
 		new GetCommand({
 		  TableName: process.env.TABLE_NAME,

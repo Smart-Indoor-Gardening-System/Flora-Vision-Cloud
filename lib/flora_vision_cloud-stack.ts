@@ -72,7 +72,14 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		indexName: "deviceIdIndex",
 	  });
   
+	  const notificationTable = new Table(this, 'NotificationTable', {
+		partitionKey: { name: 'userId', type: AttributeType.STRING },
+		sortKey: { name: 'notificationId', type: AttributeType.STRING },
+		removalPolicy: cdk.RemovalPolicy.DESTROY, // Don't use in production!
+		billingMode: BillingMode.PAY_PER_REQUEST,
+	  });
 
+	 
 	const wsConnectionTable = new Table(this, 'WSConnectionTable', {
 		partitionKey: { name: 'connectionId', type: AttributeType.STRING },
 		sortKey: {name:'deviceId', type: AttributeType.STRING },
@@ -129,6 +136,9 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		entry: 'lambda/approveNotifier.ts',
 		handler: 'handler',
 		runtime: aws_lambda.Runtime.NODEJS_18_X,
+		environment:{
+			TABLE_NAME: notificationTable.tableName,
+		}
 	  });
 
 
@@ -205,6 +215,31 @@ export class FloraVisionCloudStack extends cdk.Stack {
   userDeviceTable.grantReadData(setPlantLambda);
 
 
+  const markAsReadLambda = new NodejsFunction(this, 'markAsReadLambda', {
+	entry: 'lambda/markAsRead.ts',
+	handler: 'handler',
+	runtime: aws_lambda.Runtime.NODEJS_18_X,
+	environment: {
+		TABLE_NAME: notificationTable.tableName,
+	},
+  });
+
+ 
+
+  notificationTable.grantReadWriteData(markAsReadLambda);
+
+  const getNotificationsLambda = new NodejsFunction(this, 'getNotificationsLambda', {
+	entry: 'lambda/getNotifications.ts',
+	handler: 'handler',
+	runtime: aws_lambda.Runtime.NODEJS_18_X,
+	environment: {
+		TABLE_NAME: notificationTable.tableName,
+	},
+  });
+
+  notificationTable.grantReadWriteData(getNotificationsLambda);
+
+
 	const handleApprovalLambda = new NodejsFunction(this, 'handleApprovalLambda', {
 		entry: 'lambda/handleApproval.ts',
 		handler: 'handler',
@@ -219,6 +254,8 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	  userDeviceTable.grantReadWriteData(handleApprovalLambda);
 	  approvalQueue.grantSendMessages(handleApprovalLambda);
 	  userTable.grantReadWriteData(handleApprovalLambda);
+	  notificationTable.grantReadWriteData(approveNotifierLambda);
+
 
 	  // Grant permissions for receiver to receive messages from SQS queue
 	 approvalQueue.grantConsumeMessages(approveNotifierLambda);
@@ -270,10 +307,12 @@ export class FloraVisionCloudStack extends cdk.Stack {
 	runtime: aws_lambda.Runtime.NODEJS_18_X,
 	environment: {
 		TABLE_NAME: userDeviceTable.tableName,
+		DEVICE_TABLE_NAME: deviceTable.tableName
 	},
   });
 
   userDeviceTable.grantReadWriteData(deleteUserFromDeviceLambda);
+  deviceTable.grantReadWriteData(deleteUserFromDeviceLambda);
 
   const getUserPrivilegeLambda =  new NodejsFunction(this, 'GetUserPrivilegeLambda', {
 	entry: 'lambda/getUserPrivilege.ts',
@@ -418,6 +457,22 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		},
 	  );
 
+	  const markAsReadResource = restApi.root.addResource('markAsRead');
+	  markAsReadResource.addMethod(
+		'PUT',
+		new apigw.LambdaIntegration(markAsReadLambda),
+		{
+		  methodResponses: [{
+			statusCode: '204',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
+
 	  const handleApprovalResource = restApi.root.addResource('handleApproval');
 	  handleApprovalResource.addMethod(
 		'PUT',
@@ -482,6 +537,23 @@ export class FloraVisionCloudStack extends cdk.Stack {
 		  }],
 		},
 	  );
+
+	  const getNotificationsResource = restApi.root.addResource('getNotifications');
+	  getNotificationsResource.addMethod(
+		'GET',
+		new apigw.LambdaIntegration(getNotificationsLambda),
+		{
+		  methodResponses: [{
+			statusCode: '200',
+			responseParameters: {
+			  'method.response.header.Content-Type': true,
+			  'method.response.header.Access-Control-Allow-Origin': true,
+			  'method.response.header.Access-Control-Allow-Methods': true,
+			},
+		  }],
+		},
+	  );
+
 
 	  const getSensorDataResource = restApi.root.addResource('getSensorData');
 	  getSensorDataResource.addMethod(
