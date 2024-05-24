@@ -1,8 +1,7 @@
 # Welcome to your CDK TypeScript project
 
-This is a blank project for CDK development with TypeScript.
+![327971279-dd44a1db-7084-40c2-8b2b-f46cfcc687cc](https://github.com/Smart-Indoor-Gardening-System/Flora-Vision-Cloud/assets/68688967/4f2e4993-fac2-48fa-868a-fffe073ed280)
 
-The `cdk.json` file tells the CDK Toolkit how to execute your app.
 
 ## Useful commands
 
@@ -12,3 +11,4 @@ The `cdk.json` file tells the CDK Toolkit how to execute your app.
 * `npx cdk deploy`  deploy this stack to your default AWS account/region
 * `npx cdk diff`    compare deployed stack with current state
 * `npx cdk synth`   emits the synthesized CloudFormation template
+
