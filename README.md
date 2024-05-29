@@ -4,7 +4,9 @@
 
 
 
-![Uploading FVPoster (2)_page-0001 (1).jpg…]()
+
+![FVPoster (2)_page-0001 (1)](https://github.com/Smart-Indoor-Gardening-System/Flora-Vision-Cloud/assets/68688967/68fa7022-010c-4964-90c2-82287034fa95)
+
 
 
 ## Useful commands
